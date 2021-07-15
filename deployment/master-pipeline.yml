@@ -1,0 +1,45 @@
+name: $(Year:yyyy).$(Month).$(Date:dd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - refs/heads/dev
+      - refs/heads/test
+      - refs/heads/tat
+      - refs/heads/prod
+
+variables:
+
+  - ${{ if eq(variables['Build.SourceBranchName'], 'dev') }}:
+    - name: 'Environment'
+      value: 'dev'
+
+  - ${{ if eq(variables['Build.SourceBranchName'], 'test') }}:
+    - name: 'Environment' 
+      value: 'test'
+      
+  - ${{ if eq(variables['Build.SourceBranchName'], 'tat') }}:
+    - name: 'Environment' 
+      value: 'tat'
+
+  - ${{ if eq(variables['Build.SourceBranchName'], 'prod') }}:
+    - name: 'Environment' 
+      value: 'prod'
+
+  - template: variables/vars.yml
+
+stages:
+- stage: Build
+  displayName: 'Build Code'
+  condition: or(startsWith(variables['Build.SourceBranch'], 'refs/heads/dev'), startsWith(variables['Build.SourceBranch'], 'refs/heads/test'), startsWith(variables['Build.SourceBranch'], 'refs/heads/tat'), startsWith(variables['Build.SourceBranch'], 'refs/heads/prod'))
+  jobs:
+  - template: code/build-code-pipeline.yml
+
+- stage: Deploy_Infrastructure
+  displayName: 'Deploy Infrastructure'
+  condition: and(succeeded(), or(startsWith(variables['Build.SourceBranch'], 'refs/heads/dev'), startsWith(variables['Build.SourceBranch'], 'refs/heads/test'), startsWith(variables['Build.SourceBranch'], 'refs/heads/tat'), startsWith(variables['Build.SourceBranch'], 'refs/heads/prod')))
+  dependsOn: Build
+  jobs:
+  - template: infrastructure/deploy-infrastructure-pipeline.yml
+    parameters:
+      serviceConnection: '$(ServiceConnection)'

@@ -1,0 +1,10 @@
+# Dependency directories
+node_modules/
+
+# TypeScript output
+dist
+out
+
+# Azure Functions artifacts
+appsettings.json
+local.settings.json

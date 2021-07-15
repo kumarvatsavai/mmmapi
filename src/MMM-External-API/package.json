@@ -1,0 +1,23 @@
+{
+  "name": "esc-mmm-api",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "prestart": "npm run build",
+    "start": "func start",
+    "test": "echo \"No tests yet...\""
+  },
+  "dependencies": {
+    "@pnp/common-commonjs": "^2.1.0",
+    "@pnp/pnpjs": "^2.1.0",
+    "axios": "^0.21.1",
+    "moment": "^2.29.1",
+    "sp-pnp-node": "^3.0.0"
+  },
+  "devDependencies": {
+    "@azure/functions": "^1.0.2-beta2",
+    "typescript": "^3.3.3"
+  }
+}

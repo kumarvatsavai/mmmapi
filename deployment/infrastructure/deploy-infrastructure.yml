@@ -1,0 +1,204 @@
+parameters:
+- name: serviceConnection
+  displayName: Service Connection for Azure Subscription 
+  type: string
+
+steps:
+  # Download Pipeline Artifacts
+  - task: DownloadPipelineArtifact@2
+    displayName: Download Pipeline Artifacts
+
+  # Deploy main Resource Group
+  - task: AzureResourceManagerTemplateDeployment@3
+    inputs:
+      deploymentScope: 'Resource Group'
+      azureResourceManagerConnection: '$(SubscriptionName)'
+      subscriptionId: '$(SubscriptionId)'
+      action: 'Create Or Update Resource Group'
+      resourceGroupName: '$(ResourceGroupName)'
+      location: '$(Location)'
+      templateLocation: 'Linked artifact'
+      csmFile: '$(Pipeline.Workspace)/dropCommons/resources/resource_group_template.json'
+      deploymentMode: 'Incremental'
+      deploymentName: 'ResourceGroupDeploy'
+
+  # Deploy Storage Account
+  - task: AzureResourceGroupDeployment@2
+    displayName: "Deploy Storage Account"
+    inputs:
+      azureSubscription: "${{parameters.serviceConnection}}"
+      action: "Create Or Update Resource Group"
+      resourceGroupName: "$(ResourceGroupName)"
+      location: "$(Location)"
+      templateLocation: "Linked artifact"
+      csmFile: "$(Pipeline.Workspace)/dropCommons/resources/storage_template.json"
+      overrideParameters:
+        -storageName $(StorageAccountName)
+      deploymentMode: "Incremental"
+      deploymentName: "StorageAccountDeployment"
+      deploymentOutputs: "StorageAccountDeploymentOutputs"
+
+  # Export ARM deployment results
+  - task: AzurePowerShell@4
+    displayName: Export ARM deployment results
+    inputs:
+      azureSubscription: "${{parameters.serviceConnection}}"
+      azurePowerShellVersion: LatestVersion
+      failOnStandardError: true
+      pwsh: true
+      ScriptType: InlineScript
+      Inline: |
+        function Convert-ArmOutputToPsObject {
+          param (
+            [Parameter(Mandatory=$true)]
+            [string]
+            $ArmOutputString
+          )
+    
+          if ($PSBoundParameters['Verbose']) {
+            Write-Host "Arm output json is:"
+            Write-Host $ArmOutputString
+          }
+    
+          $armOutputObj = $ArmOutputString | ConvertFrom-Json
+    
+          $armOutputObj.PSObject.Properties | ForEach-Object {
+              $type = ($_.value.type).ToLower()
+              $keyname = "ArmOutputs.$($_.name)"
+              $value = $_.value.value
+    
+              if ($type -eq "securestring") {
+                  Write-Host "##vso[task.setvariable variable=$keyname;issecret=true]$value"
+                  Write-Host "Added Azure DevOps secret variable '$keyname' ('$type')"
+              } elseif ($type -eq "string") {
+                  Write-Host "##vso[task.setvariable variable=$keyname]$value"
+                  Write-Host "Added Azure DevOps variable '$keyname' ('$type') with value '$value'"
+              } else {
+                  Throw "Type '$type' is not supported for '$keyname'"
+              }
+          }
+        }
+    
+        Convert-ArmOutputToPsObject -ArmOutputString '$(StorageAccountDeploymentOutputs)' -Verbose
+      displayName: "Parsing outputs from ARM deployment to pipeline variables"
+
+  # Deploy Application Insights
+  - task: AzureResourceGroupDeployment@2
+    displayName: Deploy Application Insights
+    inputs:
+      azureSubscription: "${{parameters.serviceConnection}}"
+      action: "Create Or Update Resource Group"
+      resourceGroupName: "$(ResourceGroupName)"
+      location: "$(Location)"
+      templateLocation: "Linked artifact"
+      csmFile: "$(Pipeline.Workspace)/dropCommons/resources/application_insights_template.json"
+      overrideParameters:
+        -baseName $(ApplicationInsightsName)
+      deploymentMode: "Incremental"
+      deploymentName: "ApplicationInsightsDeployment"
+      deploymentOutputs: "ApplicationInsightsDeploymentOutputs"
+
+  - task: AzurePowerShell@4
+    displayName: Export ARM deployment results
+    inputs:
+      azureSubscription: "${{parameters.serviceConnection}}"
+      azurePowerShellVersion: LatestVersion
+      failOnStandardError: true
+      pwsh: true
+      ScriptType: InlineScript
+      Inline: |
+        function Convert-ArmOutputToPsObject {
+          param (
+            [Parameter(Mandatory=$true)]
+            [string]
+            $ArmOutputString
+          )
+    
+          if ($PSBoundParameters['Verbose']) {
+            Write-Host "Arm output json is:"
+            Write-Host $ArmOutputString
+          }
+    
+          $armOutputObj = $ArmOutputString | ConvertFrom-Json
+    
+          $armOutputObj.PSObject.Properties | ForEach-Object {
+              $type = ($_.value.type).ToLower()
+              $keyname = "ArmOutputs.$($_.name)"
+              $value = $_.value.value
+    
+              if ($type -eq "securestring") {
+                  Write-Host "##vso[task.setvariable variable=$keyname;issecret=true]$value"
+                  Write-Host "Added Azure DevOps secret variable '$keyname' ('$type')"
+              } elseif ($type -eq "string") {
+                  Write-Host "##vso[task.setvariable variable=$keyname]$value"
+                  Write-Host "Added Azure DevOps variable '$keyname' ('$type') with value '$value'"
+              } else {
+                  Throw "Type '$type' is not supported for '$keyname'"
+              }
+          }
+        }
+    
+        Convert-ArmOutputToPsObject -ArmOutputString '$(ApplicationInsightsDeploymentOutputs)' -Verbose
+      displayName: "Parsing outputs from ARM deployment to pipeline variables"
+
+  # Deploy Azure function
+  - task: AzureResourceGroupDeployment@2
+    displayName: Deploy Azure Function for Transformation
+    inputs:
+      azureSubscription: "${{parameters.serviceConnection}}"
+      action: "Create Or Update Resource Group"
+      resourceGroupName: "$(ResourceGroupName)"
+      location: "$(Location)"
+      templateLocation: "Linked artifact"
+      csmFile: "$(Pipeline.Workspace)/dropCommons/resources/functionapp_template.json"
+      overrideParameters:
+        -baseName $(FunctionName)
+        -storageConnectionString $(ArmOutputs.storageAccountConnectionString)
+        -appInsightsKeyResourceId $(ArmOutputs.aiInstrumentationKey)
+        -appInsightsConnectionString $(ArmOutputs.aiConnectionString)
+      deploymentMode: "Incremental"
+      deploymentName: FunctionDeployment
+
+  # Deploy Settings for Azure Function
+  - task: AzurePowerShell@5
+    displayName: Set custom app settings for Azure Function
+    inputs:
+      azureSubscription: "${{parameters.serviceConnection}}"
+      azurePowerShellVersion: LatestVersion
+      ScriptType: 'FilePath'
+      ScriptPath: "$(Pipeline.Workspace)/dropCommons/scripts/update_site_appsettings.ps1"
+      pwsh: true
+      FailOnStandardError: true
+      ScriptArguments:
+        -rgName $(ResourceGroupName) -appName $(FunctionName) -SlotName "Staging"
+        -settingNames "clientId",
+                      "clientSecret",
+                      "objectId", 
+                      "tenantId",
+                      "environment"
+        -settingValues "71796256-19f1-4456-8f5e-75d0e5b1d2ad@cd99fef8-1cd3-4a2a-9bdf-15531181d65e",
+                      "ZAdHLLMp3UyohQH2NvmARGKs+R+961kQoLvwiOjcw34=",
+                      "00000003-0000-0ff1-ce00-000000000000",
+                      "cd99fef8-1cd3-4a2a-9bdf-15531181d65e",
+                      $(Environment)
+  - task: AzureFunctionApp@1
+    displayName: 'Deploy Function Code to Staging slot for Az Function"'
+    inputs:
+      azureSubscription: "${{parameters.serviceConnection}}"
+      appType: "functionApp"
+      appName: "$(FunctionName)"
+      deployToSlotOrASE: true
+      resourceGroupName: "$(ResourceGroupName)"
+      slotName: "Staging"
+      package: "$(Pipeline.Workspace)/$(BaseName)/*.zip"
+      appSettings: "-WEBSITE_RUN_FROM_PACKAGE 1"
+      deploymentMethod: "runFromPackage"
+
+  - task: AzureAppServiceManage@0
+    displayName: 'Swap Staging slot to Production for Az Function"'
+    inputs:
+      azureSubscription: "${{parameters.serviceConnection}}"
+      Action: "Swap Slots"
+      WebAppName: "$(FunctionName)"
+      resourceGroupName: "$(ResourceGroupName)"
+      SourceSlot: "Staging"

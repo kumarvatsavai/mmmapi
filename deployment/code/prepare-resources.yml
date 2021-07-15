@@ -1,0 +1,25 @@
+steps:
+  - checkout: self
+    path: self
+
+  - task: CopyFiles@2
+    displayName: "Copy common deployment scripts to artifacts"
+    inputs:
+      SourceFolder: '$(Build.SourcesDirectory)\scripts\'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)\commons\scripts\'
+      cleanTargetFolder: true
+      Contents: '**\*'
+    
+  - task: CopyFiles@2
+    displayName: "Copy common deployment resources to artifacts"
+    inputs:
+      SourceFolder: '$(Build.SourcesDirectory)\resources\'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)\commons\resources\'
+      cleanTargetFolder: true
+      Contents: '**\*'
+
+  - task: PublishPipelineArtifact@0
+    displayName: "Publish common pipeline artifacts"
+    inputs:
+      artifactName: "dropCommons"
+      targetPath: '$(Build.ArtifactStagingDirectory)\commons'

@@ -1,0 +1,184 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+      "baseName": {
+        "type": "string",
+        "metadata": {
+          "description": "base name"
+        }
+      },
+      "appInsightsKeyResourceId": {
+        "type": "string",
+        "metadata": {
+          "description": "Key Vault Id of AI Instrumentation Key"
+        }
+      },
+      "appInsightsConnectionString": {
+        "type": "string",
+        "metadata": {
+          "description": "App insights connection string"
+        }
+      },
+      "storageConnectionString": {
+        "type": "string",
+        "metadata": {
+          "description": "storage connection string"
+        }
+      },
+      "sku": {
+        "type": "object",
+        "defaultValue": {
+          "name": "Y1",
+          "tier": "Dynamic",
+          "size": "Y1",
+          "family": "Y",
+          "capacity": 0
+        },
+        "metadata": {
+          "description": "The service offer type (SKU, Family)"
+        }
+      },
+      "functionsRuntimeVersion": {
+        "type": "int",
+        "defaultValue": 3,
+        "metadata": {
+          "description": "Definies version of azure function runtime"
+        }
+      },
+      "functionsWorkerRuntime": {
+        "type": "string",
+        "defaultValue": "node",
+        "allowedValues": [
+          "dotnet",
+          "node",
+          "java",
+          "powershell",
+          "python"
+        ]
+      }
+    },
+    "variables": {
+      "baseName": "[parameters('baseName')]",
+      "functionAppName": "[toLower(concat('', variables('baseName')))]",
+      "hostingPlanName": "[concat('azappplan-', variables('baseName'))]",
+      "waApiVersion": "2018-02-01"
+    },
+    "resources": [
+      {
+        "type": "Microsoft.Web/serverfarms",
+        "apiVersion": "2018-11-01",
+        "name": "[variables('hostingPlanName')]",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+        ],
+        "tags": {
+        },
+        "sku": "[parameters('sku')]",
+        "kind": "",
+        "properties": {
+          "name": "[variables('hostingPlanName')]"
+        }
+      },
+      {
+        "apiVersion": "2019-08-01",
+        "type": "Microsoft.Web/sites",
+        "name": "[variables('functionAppName')]",
+        "location": "[resourceGroup().location]",
+        "kind": "functionapp",
+        "dependsOn": [
+          "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]"
+        ],
+        "identity": {
+          "type": "SystemAssigned"
+        },
+        "properties": {
+          "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
+          "clientAffinityEnabled": true,
+          "cors": {
+            "allowedOrigins": [
+              "*"
+            ]
+          },
+          "siteConfig": {
+            "appSettings": [
+              {
+                "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                "value": "[parameters('appInsightsKeyResourceId')]"
+              },
+              {
+                "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                "value": "[parameters('appInsightsConnectionString')]"
+              },
+              {
+                "name": "AzureWebJobsStorage",
+                "value": "[parameters('storageConnectionString')]"
+              },
+              {
+                "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
+                "value": "[parameters('storageConnectionString')]"
+              },
+              {
+                "name": "WEBSITE_CONTENTSHARE",
+                "value": "[toLower(variables('functionAppName'))]"
+              },
+              {
+                "name": "FUNCTIONS_WORKER_RUNTIME",
+                "value": "[parameters('functionsWorkerRuntime')]"
+              },
+              {
+                "name": "FUNCTIONS_EXTENSION_VERSION",
+                "value": "[concat('~',parameters('functionsRuntimeVersion'))]"
+              },
+              {
+                "name": "WEBSITE_NODE_DEFAULT_VERSION",
+                "value": "~12"
+              },
+              {
+                "name": "WEBSITE_RUN_FROM_PACKAGE",
+                "value": "1"
+              }
+            ],
+            "alwaysOn": "[if(equals(toLower(parameters('sku').tier), 'dynamic'), bool('false'), bool('yes'))]",
+            "http20Enabled": true,
+            "minTlsVersion": "1.2",
+            "remoteDebuggingEnabled": "false",
+            "webSocketsEnabled": "false",
+            "requestTracingEnabled": true,
+            "httpLoggingEnabled": true,
+            "detailedErrorLoggingEnabled": true,
+            "azureMonitorLogCategories": [
+              "FunctionAppLogs"
+            ]
+          },
+          "httpsOnly": true
+        },
+        "resources": [
+          {
+            "apiVersion": "[variables('waApiVersion')]",
+            "name": "Staging",
+            "type": "slots",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+              "[resourceId('Microsoft.Web/Sites', variables('functionAppName'))]"
+            ],
+            "properties": {
+  
+            },
+            "resources": [
+            ]
+          }
+        ]
+      }
+    ],
+    "outputs": {
+      "functionIdentityObjectId": {
+        "type": "string",
+        "value": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2019-08-01', 'Full').identity.principalId]"
+      },
+      "functionAppName": {
+        "type": "string",
+        "value": "[variables('functionAppName')]"
+      }
+    }
+  }

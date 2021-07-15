@@ -1,0 +1,91 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Specifies the location in which the Azure Storage resources should be deployed."
+      }
+    },
+    "storageName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the blob"
+      }
+    }
+  },
+  "variables": {
+    "storageName": "[parameters('storageName')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2019-04-01",
+      "name": "[variables('storageName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_LRS",
+        "tier": "Standard"
+      },
+      "kind": "StorageV2",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "tags": {
+        "used-by": "multiple",
+        "purpose": "store defect messeages"
+      },
+      "properties": {
+        "supportsHttpsTrafficOnly": true,
+        "encryption": {
+          "services": {
+            "file": {
+              "enabled": true
+            },
+            "blob": {
+              "enabled": true
+            }
+          },
+          "keySource": "Microsoft.Storage"
+        },
+        "deleteRetentionPolicy": {
+          "enabled": true,
+          "days": 7
+        }
+      },
+      "resources": [
+          {
+            "type": "Microsoft.Storage/storageAccounts/blobServices",
+            "apiVersion": "2019-04-01",
+            "name": "[concat(variables('storageName'), '/default')]",
+            "dependsOn": [
+              "[resourceId('Microsoft.Storage/storageAccounts', variables('storageName'))]"
+            ],
+            "properties": {
+              "deleteRetentionPolicy": {
+                "enabled": true,
+                "days": 7
+              }
+            }
+          }
+        ]
+    }
+
+  ],
+  "outputs": {
+    "storageName": {
+      "type": "string",
+      "value": "[variables('storageName')]"
+    },
+    "primaryAccessKey": {
+      "type": "string",
+      "value": "[listKeys(variables('storageName'), '2019-04-01').keys[0].value]"
+    },
+    "storageAccountConnectionString": {
+      "type": "string",
+      "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageName'), ';AccountKey=', listKeys(variables('storageName'), '2019-04-01').keys[0].value, ';EndpointSuffix=core.windows.net')]"
+    }
+  }
+}

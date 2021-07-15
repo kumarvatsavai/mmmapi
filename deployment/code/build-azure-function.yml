@@ -1,0 +1,50 @@
+parameters:
+  projectDirectory: ""
+  artifactDirectory: ""
+
+steps:
+  - task: Npm@1
+    displayName: npm install packages for ${{parameters.projectDirectory}} project
+    inputs:
+      command: "install"
+      workingDir: '$(Build.SourcesDirectory)\src\${{parameters.projectDirectory}}\'
+
+  - task: Npm@1
+    displayName: npm run build ${{parameters.projectDirectory}} project
+    inputs:
+      command: "custom"
+      workingDir: '$(Build.SourcesDirectory)\src\${{parameters.projectDirectory}}\'
+      customCommand: "run build"
+      customRegistry: "useFeed"
+      customFeed: $(NpmCustomFeed)
+
+  - task: Npm@1
+    displayName: npm prune --production ${{parameters.projectDirectory}} project
+    inputs:
+      command: "custom"
+      workingDir: '$(Build.SourcesDirectory)\src\${{parameters.projectDirectory}}\'
+      customCommand: "prune --production"
+      customRegistry: "useFeed"
+      customFeed: $(NpmCustomFeed)
+
+  - task: CopyFiles@2
+    displayName: "Copy dist files"
+    inputs:
+      SourceFolder: '$(Build.SourcesDirectory)\src\${{parameters.projectDirectory}}\'
+      Contents: '**\*'
+      TargetFolder: '$(Build.ArtifactStagingDirectory)\files'
+      CleanTargetFolder: true
+
+  - task: ArchiveFiles@2
+    inputs:
+      rootFolderOrFile: '$(Build.ArtifactStagingDirectory)\files'
+      includeRootFolder: false
+      archiveType: "zip"
+      archiveFile: "$(Build.ArtifactStagingDirectory)/package-$(Build.BuildNumber).zip"
+      replaceExistingArchive: true
+
+  - task: PublishPipelineArtifact@0
+    displayName: "Publish pipeline artifacts"
+    inputs:
+      artifactName: "${{parameters.artifactDirectory}}"
+      targetPath: "$(Build.ArtifactStagingDirectory)"

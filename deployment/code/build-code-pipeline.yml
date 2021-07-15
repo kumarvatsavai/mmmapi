@@ -1,0 +1,25 @@
+parameters:
+- name: deployCode
+  type: boolean
+  default: false
+- name: deployInfra
+  type: boolean
+  default: false
+
+jobs:
+- job: Prepare_Resources
+  displayName: Copy deployment files to Artifact directory
+  pool:
+    vmImage: "windows-latest"
+  steps:
+    - template: prepare-resources.yml
+
+- job: Build_Azure_Function
+  displayName: Build Azure Function
+  pool:
+    vmImage: "windows-latest"
+  steps:
+    - template: build-azure-function.yml
+      parameters:
+        projectDirectory: "$(ProjectDirectory)"
+        artifactDirectory: "$(BaseName)"

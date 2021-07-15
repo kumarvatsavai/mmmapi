@@ -1,0 +1,11 @@
+variables:
+  Location: 'westeurope'
+  ServiceConnection: 'f57db499-c673-444c-8a15-76fc60fb42a1'
+  SubscriptionId: 'ea41b5ea-ba2d-4848-ad82-ecbfc96048df'
+  SubscriptionName: 'Azure Basic connection (ITS-MMM-Pilot)'
+  BaseName: 'mmm-external-api'
+  FunctionName: '$(BaseName)-$(Environment)'
+  ApplicationInsightsName: 'ai-$(FunctionName)'
+  ResourceGroupName: 'rg-$(BaseName)-$(Environment)'
+  StorageAccountName: 'mmmextapi$(Environment)'
+  ProjectDirectory: 'MMM-External-API'

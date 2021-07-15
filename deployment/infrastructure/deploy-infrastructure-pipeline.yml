@@ -1,0 +1,13 @@
+parameters:
+- name: serviceConnection
+  type: string
+
+jobs:     
+- job: Deploy_Infrastrucure
+  displayName: ELIoT.Inbound.Transformer - Deploy Infrastructure
+  pool:
+    vmImage: "windows-latest"
+  steps:
+    - template: deploy-infrastructure.yml
+      parameters:
+        serviceConnection: ${{ parameters.serviceConnection }}
